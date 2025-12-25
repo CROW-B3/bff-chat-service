@@ -37,5 +37,20 @@
         }
       ]
     },
+    "local": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "crow-bff-chat-service-db-local",
+          "database_id": "45b02f1a-9d64-48b1-bd7a-9a78999d1f66"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_BUCKET",
+          "bucket_name": "crow-bff-chat-service-store-local"
+        }
+      ]
+    },
   },
 }
