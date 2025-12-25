@@ -8,7 +8,34 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "crow-bff-chat-service-db",
+      "database_id": "356a1a49-f09b-4987-8a60-0bd76fb9f6f5"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "R2_BUCKET",
+      "bucket_name": "crow-bff-chat-service-store"
+    }
+  ],
   "env": {
-    "dev": {},
+    "dev": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "crow-bff-chat-service-db-dev",
+          "database_id": "069bef70-1940-4d23-b996-172d7391f351"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "R2_BUCKET",
+          "bucket_name": "crow-bff-chat-service-store-dev"
+        }
+      ]
+    },
   },
 }
