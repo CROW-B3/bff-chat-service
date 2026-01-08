@@ -21,8 +21,14 @@
       "bucket_name": "crow-bff-chat-service-store"
     }
   ],
+  "routes": [
+    { "pattern": "internal.chat.crowai.dev", "custom_domain": true }
+  ],
   "env": {
     "dev": {
+      "routes": [
+        { "pattern": "dev.internal.chat.crowai.dev", "custom_domain": true }
+      ],
       "d1_databases": [
         {
           "binding": "DB",
