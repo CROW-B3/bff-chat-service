@@ -42,7 +42,7 @@
         {
           "binding": "DB",
           "database_name": "crow-bff-chat-service-db-dev",
-          "database_id": "069bef70-1940-4d23-b996-172d7391f351"
+          "database_id": "53f66df0-a9b6-46bd-a99e-7b8087015c41"
         }
       ],
       "r2_buckets": [
