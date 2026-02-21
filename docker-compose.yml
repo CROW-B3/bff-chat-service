@@ -1,0 +1,7 @@
+services:
+  chat-service:
+    build: .
+    ports:
+      - '8009:8080'
+    environment:
+      - ENVIRONMENT=local
