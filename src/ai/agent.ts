@@ -1,4 +1,4 @@
-import type { AiMessage, AiRunResult } from '../types';
+import type { AiMessage, AiRunResult, Environment } from '../types';
 import { executeToolCalls, TOOLS } from './tools';
 
 const AI_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
@@ -67,4 +67,35 @@ export async function runAgenticLoop(
     finalResult.response ??
     'I was unable to generate a response after analysis.'
   );
+}
+
+export async function runCrewAgenticLoop(
+  messages: AiMessage[],
+  organizationId: string,
+  apiGatewayUrl: string,
+  ai: Ai,
+  env: Environment
+): Promise<string> {
+  try {
+    const containerId = env.CHAT_CREW_CONTAINER.idFromName('chat-crew');
+    const stub = env.CHAT_CREW_CONTAINER.get(containerId);
+    const response = await stub.fetch(
+      new Request('http://container/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: messages[messages.length - 1]?.content ?? '',
+          organization_id: organizationId,
+          conversation_history: messages,
+          api_gateway_url: apiGatewayUrl,
+        }),
+      })
+    );
+    if (!response.ok)
+      throw new Error(`Container responded with ${response.status}`);
+    const data = (await response.json()) as { response: string };
+    return data.response;
+  } catch {
+    return runAgenticLoop(messages, organizationId, apiGatewayUrl, ai);
+  }
 }

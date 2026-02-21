@@ -15,6 +15,21 @@
     "ENVIRONMENT": "prod",
     "API_GATEWAY_URL": "https://api.crowai.dev",
   },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
+    ]
+  },
+  "containers": [
+    {
+      "class_name": "ChatCrewContainer",
+      "image": "./Dockerfile",
+      "max_instances": 3
+    }
+  ],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ChatCrewContainer"] }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -41,6 +56,19 @@
         "ENVIRONMENT": "dev",
         "API_GATEWAY_URL": "https://dev.api.crowai.dev",
       },
+      "durable_objects": {
+        "bindings": [
+          { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
+        ]
+      },
+      "containers": [
+        {
+          "class_name": "ChatCrewContainer",
+          "name": "chat-crew-container",
+          "image": "./Dockerfile",
+          "max_instances": 3
+        }
+      ],
       "routes": [
         { "pattern": "dev.internal.chat.crowai.dev", "custom_domain": true }
       ],
