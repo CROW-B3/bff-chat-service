@@ -1,4 +1,3 @@
-import type { Container } from 'cloudflare:workers';
 import type { Environment } from './types';
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { DurableObject } from 'cloudflare:workers';
@@ -25,7 +24,9 @@ export class ChatCrewContainer extends DurableObject<Environment> {
   }
 
   async fetch(request: Request): Promise<Response> {
-    return this.container.fetch(request);
+    return (
+      this.container as unknown as { fetch: (r: Request) => Promise<Response> }
+    ).fetch(request);
   }
 }
 
