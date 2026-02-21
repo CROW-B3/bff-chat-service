@@ -1,0 +1,19 @@
+meta {
+  name: Get Chat Messages
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
