@@ -1,0 +1,26 @@
+meta {
+  name: Create Chat Session
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/v1/chat/sessions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "organizationId": "{{orgId}}",
+    "userId": "test-user-id"
+  }
+}
