@@ -1,19 +1,7 @@
-# Build stage
-FROM oven/bun:1 AS builder
-
+FROM python:3.12-slim
 WORKDIR /app
-
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
-
-COPY . ./
-
-RUN bun build src/index.ts --compile --outfile server
-
-FROM debian:bookworm-slim
-
-WORKDIR /app
-
-COPY --from=builder /app/server ./server
-
-CMD ["./server"]
+COPY pyproject.toml .
+RUN pip install uv && uv sync --no-editable
+COPY . .
+EXPOSE 8080
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -7,6 +7,7 @@ export interface Environment {
   ENVIRONMENT: string;
   API_GATEWAY_URL: string;
   INTERNAL_API_KEY?: string;
+  CHAT_CREW_CONTAINER: DurableObjectNamespace;
 }
 
 export const HelloWorldSchema = z
