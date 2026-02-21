@@ -1,0 +1,37 @@
+meta {
+  name: A2A Send Task
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/a2a/tasks/send
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "id": "task-001",
+    "message": {
+      "role": "user",
+      "parts": [
+        {
+          "type": "text",
+          "text": "Search for blue shirts in our catalog"
+        }
+      ]
+    },
+    "metadata": {
+      "organizationId": "{{orgId}}"
+    }
+  }
+}

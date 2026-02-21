@@ -1,0 +1,26 @@
+meta {
+  name: Send Chat Message
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/v1/chat/sessions/{{sessionId}}/messages
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{apiKey}}
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "content": "What products do we have?",
+    "organizationId": "{{orgId}}"
+  }
+}
