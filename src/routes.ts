@@ -25,7 +25,7 @@ export const CreateSessionRoute = createRoute({
         'application/json': {
           schema: z.object({
             organizationId: z.string(),
-            userId: z.string(),
+            userId: z.string().optional(),
           }),
         },
       },
@@ -113,6 +113,63 @@ export const GetMessagesRoute = createRoute({
   },
 });
 
+export const GetSessionRoute = createRoute({
+  method: 'get',
+  path: '/api/v1/chat/sessions/:sessionId',
+  request: {
+    params: z.object({ sessionId: z.string() }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            id: z.string(),
+            organizationId: z.string(),
+            userId: z.string().optional(),
+            createdAt: z.number(),
+          }),
+        },
+      },
+      description: 'Chat session details',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: 'Session not found',
+    },
+  },
+});
+
+export const DeleteSessionRoute = createRoute({
+  method: 'delete',
+  path: '/api/v1/chat/sessions/:sessionId',
+  request: {
+    params: z.object({ sessionId: z.string() }),
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({ success: z.boolean() }),
+        },
+      },
+      description: 'Session deleted',
+    },
+    404: {
+      content: {
+        'application/json': {
+          schema: z.object({ error: z.string() }),
+        },
+      },
+      description: 'Session not found',
+    },
+  },
+});
+
 export const GetSessionsByOrgRoute = createRoute({
   method: 'get',
   path: '/api/v1/chat/sessions/organization/:orgId',
@@ -128,7 +185,7 @@ export const GetSessionsByOrgRoute = createRoute({
               z.object({
                 id: z.string(),
                 organizationId: z.string(),
-                userId: z.string(),
+                userId: z.string().optional(),
                 createdAt: z.number(),
               })
             ),
