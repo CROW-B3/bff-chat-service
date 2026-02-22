@@ -9,7 +9,9 @@ import { runCrewAgenticLoop } from './ai/agent';
 import * as schema from './db/schema';
 import {
   CreateSessionRoute,
+  DeleteSessionRoute,
   GetMessagesRoute,
+  GetSessionRoute,
   GetSessionsByOrgRoute,
   HelloWorldRoute,
   SendMessageRoute,
@@ -57,7 +59,8 @@ app.openapi(HelloWorldRoute, c =>
 
 app.openapi(CreateSessionRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
-  const { organizationId, userId } = c.req.valid('json');
+  const { organizationId, userId: bodyUserId } = c.req.valid('json');
+  const userId = bodyUserId ?? c.req.header('X-User-Id') ?? '';
 
   const sessionId = crypto.randomUUID();
   const now = Date.now();
@@ -172,6 +175,54 @@ app.openapi(GetSessionsByOrgRoute, async c => {
       createdAt: Number(session.createdAt),
     })),
   });
+});
+
+app.openapi(GetSessionRoute, async c => {
+  const database = drizzle(c.env.DB, { schema });
+  const { sessionId } = c.req.valid('param');
+
+  const results = await database
+    .select()
+    .from(schema.chatSession)
+    .where(eq(schema.chatSession.id, sessionId))
+    .limit(1);
+
+  if (results.length === 0) {
+    return c.json({ error: 'Session not found' }, 404);
+  }
+
+  const session = results[0];
+  return c.json({
+    id: session.id,
+    organizationId: session.organizationId,
+    userId: session.userId,
+    createdAt: Number(session.createdAt),
+  });
+});
+
+app.openapi(DeleteSessionRoute, async c => {
+  const database = drizzle(c.env.DB, { schema });
+  const { sessionId } = c.req.valid('param');
+
+  const results = await database
+    .select()
+    .from(schema.chatSession)
+    .where(eq(schema.chatSession.id, sessionId))
+    .limit(1);
+
+  if (results.length === 0) {
+    return c.json({ error: 'Session not found' }, 404);
+  }
+
+  await database
+    .delete(schema.chatMessage)
+    .where(eq(schema.chatMessage.sessionId, sessionId));
+
+  await database
+    .delete(schema.chatSession)
+    .where(eq(schema.chatSession.id, sessionId));
+
+  return c.json({ success: true });
 });
 
 app.doc('/docs', {
