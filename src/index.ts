@@ -4,7 +4,6 @@ import { DurableObject } from 'cloudflare:workers';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { logger } from 'hono/logger';
-import { poweredBy } from 'hono/powered-by';
 import { runCrewAgenticLoop } from './ai/agent';
 import * as schema from './db/schema';
 import {
@@ -16,6 +15,17 @@ import {
   HelloWorldRoute,
   SendMessageRoute,
 } from './routes';
+
+function parseStoredReferences(
+  raw: string | null
+): Array<{ index: number; type: string; label: string }> | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
 
 export class ChatCrewContainer extends DurableObject<Environment> {
   private container: Container;
@@ -49,25 +59,62 @@ async function fetchRecentMessages(
   }));
 }
 
-const app = new OpenAPIHono<{ Bindings: Environment }>();
-app.use(poweredBy());
+function resolveAgentBaseUrl(environment: string): string {
+  if (environment === 'dev') return 'https://dev.internal.chat.crowai.dev';
+  if (environment === 'local') return 'http://localhost:8009';
+  return 'https://internal.chat.crowai.dev';
+}
+
+const app = new OpenAPIHono<{ Bindings: Environment }>({
+  defaultHook: (result, c) => {
+    if (!result.success) {
+      return c.json(
+        { error: 'Bad Request', message: 'Invalid request parameters' },
+        400
+      );
+    }
+  },
+});
 app.use(logger());
 
-app.openapi(HelloWorldRoute, c =>
-  c.json({ status: 'ok', service: 'crow-bff-chat-service' })
-);
+app.onError((err, c) => {
+  const errorName = err instanceof Error ? err.name : '';
+  const errorMessage = err instanceof Error ? err.message : '';
+  if (
+    errorName === 'ZodError' ||
+    errorName === 'SyntaxError' ||
+    errorMessage.includes('Malformed JSON')
+  ) {
+    return c.json(
+      { error: 'Bad Request', message: 'Invalid request parameters' },
+      400
+    );
+  }
+  console.error('Unhandled error:', err);
+  return c.json({ error: 'Internal Server Error' }, 500);
+});
+
+app.openapi(HelloWorldRoute, c => c.json({ status: 'ok' }));
 
 app.openapi(CreateSessionRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
-  const { organizationId, userId: bodyUserId } = c.req.valid('json');
-  const userId = bodyUserId ?? c.req.header('X-User-Id') ?? '';
+  const { organizationId } = c.req.valid('json');
+  // BOLA: use gateway-injected org, reject if caller claims a different org
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId || callerOrgId !== organizationId) {
+    return c.json(
+      { error: 'Forbidden', message: 'Organization mismatch' },
+      403
+    ) as never;
+  }
+  const userId = c.req.header('X-User-Id') ?? '';
 
   const sessionId = crypto.randomUUID();
   const now = Date.now();
 
   await database.insert(schema.chatSession).values({
     id: sessionId,
-    organizationId,
+    organizationId: callerOrgId,
     userId,
     createdAt: now,
   });
@@ -79,6 +126,26 @@ app.openapi(SendMessageRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
   const { sessionId } = c.req.valid('param');
   const { content, organizationId } = c.req.valid('json');
+  // BOLA: verify the session belongs to the caller's org
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId || callerOrgId !== organizationId) {
+    return c.json(
+      { error: 'Forbidden', message: 'Organization mismatch' },
+      403
+    ) as never;
+  }
+  // Verify session belongs to caller's org
+  const session = await database
+    .select()
+    .from(schema.chatSession)
+    .where(eq(schema.chatSession.id, sessionId))
+    .get();
+  if (!session || session.organizationId !== callerOrgId) {
+    return c.json(
+      { error: 'Forbidden', message: 'Session not found or access denied' },
+      403
+    ) as never;
+  }
 
   const now = Date.now();
   const userMessageId = crypto.randomUUID();
@@ -92,7 +159,7 @@ app.openapi(SendMessageRoute, async c => {
   });
 
   const contextMessages = await fetchRecentMessages(database, sessionId);
-  const assistantContent = await runCrewAgenticLoop(
+  const agenticResult = await runCrewAgenticLoop(
     contextMessages,
     organizationId,
     c.env.API_GATEWAY_URL,
@@ -102,12 +169,17 @@ app.openapi(SendMessageRoute, async c => {
 
   const assistantMessageId = crypto.randomUUID();
   const assistantNow = Date.now();
+  const serializedReferences =
+    agenticResult.references.length > 0
+      ? JSON.stringify(agenticResult.references)
+      : null;
 
   await database.insert(schema.chatMessage).values({
     id: assistantMessageId,
     sessionId,
     role: 'assistant',
-    content: assistantContent,
+    content: agenticResult.content,
+    references: serializedReferences,
     createdAt: assistantNow,
   });
 
@@ -115,7 +187,9 @@ app.openapi(SendMessageRoute, async c => {
     message: {
       id: assistantMessageId,
       role: 'assistant',
-      content: assistantContent,
+      content: agenticResult.content,
+      references:
+        agenticResult.references.length > 0 ? agenticResult.references : null,
       createdAt: assistantNow,
     },
   });
@@ -126,8 +200,28 @@ app.openapi(GetMessagesRoute, async c => {
   const { sessionId } = c.req.valid('param');
   const { page: pageStr, limit: limitStr } = c.req.valid('query');
 
+  // BOLA: verify session belongs to caller's org before returning messages
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId) {
+    return c.json(
+      { error: 'Forbidden', message: 'Authentication required' },
+      403
+    ) as never;
+  }
+  const sessionCheck = await database
+    .select()
+    .from(schema.chatSession)
+    .where(eq(schema.chatSession.id, sessionId))
+    .get();
+  if (!sessionCheck || sessionCheck.organizationId !== callerOrgId) {
+    return c.json(
+      { error: 'Session not found or access denied' },
+      404
+    ) as never;
+  }
+
   const page = Number.parseInt(pageStr || '1', 10);
-  const limit = Number.parseInt(limitStr || '20', 10);
+  const limit = Math.min(Number.parseInt(limitStr || '20', 10), 100);
   const offset = (page - 1) * limit;
 
   const messages = await database
@@ -149,6 +243,7 @@ app.openapi(GetMessagesRoute, async c => {
       sessionId: message.sessionId,
       role: message.role,
       content: message.content,
+      references: parseStoredReferences(message.references),
       createdAt: Number(message.createdAt),
     })),
     total: allMessages.length,
@@ -158,46 +253,55 @@ app.openapi(GetMessagesRoute, async c => {
 });
 
 app.openapi(GetSessionsByOrgRoute, async c => {
-  const database = drizzle(c.env.DB, { schema });
   const { orgId } = c.req.valid('param');
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId || callerOrgId !== orgId) {
+    return c.json(
+      { error: 'Forbidden', message: 'Access denied to this organization' },
+      403
+    ) as never;
+  }
 
-  const sessions = await database
-    .select()
-    .from(schema.chatSession)
-    .where(eq(schema.chatSession.organizationId, orgId))
-    .orderBy(desc(schema.chatSession.createdAt));
+  const rows = await c.env.DB.prepare(
+    'SELECT id, organization_id, user_id, created_at FROM chat_session WHERE organization_id = ? ORDER BY created_at DESC'
+  )
+    .bind(orgId)
+    .all();
 
   return c.json({
-    sessions: sessions.map(session => ({
-      id: session.id,
-      organizationId: session.organizationId,
-      userId: session.userId,
-      createdAt: Number(session.createdAt),
+    sessions: (rows.results as Record<string, unknown>[]).map(row => ({
+      id: row.id as string,
+      organizationId: row.organization_id as string,
+      userId: row.user_id as string,
+      createdAt: Number(row.created_at),
     })),
   });
 });
 
 app.openapi(GetSessionRoute, async c => {
-  const database = drizzle(c.env.DB, { schema });
   const { sessionId } = c.req.valid('param');
 
-  const results = await database
-    .select()
-    .from(schema.chatSession)
-    .where(eq(schema.chatSession.id, sessionId))
-    .limit(1);
+  const row = await c.env.DB.prepare(
+    'SELECT id, organization_id, user_id, created_at FROM chat_session WHERE id = ?'
+  )
+    .bind(sessionId)
+    .first<Record<string, unknown>>();
 
-  if (results.length === 0) {
-    return c.json({ error: 'Session not found' }, 404);
-  }
+  if (!row) return c.json({ error: 'Session not found' }, 404) as never;
 
-  const session = results[0];
-  return c.json({
-    id: session.id,
-    organizationId: session.organizationId,
-    userId: session.userId,
-    createdAt: Number(session.createdAt),
-  });
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId || callerOrgId !== (row.organization_id as string))
+    return c.json({ error: 'Session not found' }, 404) as never;
+
+  return c.json(
+    {
+      id: row.id as string,
+      organizationId: row.organization_id as string,
+      userId: row.user_id as string,
+      createdAt: Number(row.created_at),
+    },
+    200
+  ) as never;
 });
 
 app.openapi(DeleteSessionRoute, async c => {
@@ -210,9 +314,12 @@ app.openapi(DeleteSessionRoute, async c => {
     .where(eq(schema.chatSession.id, sessionId))
     .limit(1);
 
-  if (results.length === 0) {
-    return c.json({ error: 'Session not found' }, 404);
-  }
+  if (results.length === 0)
+    return c.json({ error: 'Session not found' }, 404) as never;
+
+  const callerOrgId = c.req.header('X-Organization-Id');
+  if (!callerOrgId || callerOrgId !== results[0].organizationId)
+    return c.json({ error: 'Session not found' }, 404) as never;
 
   await database
     .delete(schema.chatMessage)
@@ -222,7 +329,7 @@ app.openapi(DeleteSessionRoute, async c => {
     .delete(schema.chatSession)
     .where(eq(schema.chatSession.id, sessionId));
 
-  return c.json({ success: true });
+  return c.json({ success: true }, 200) as never;
 });
 
 app.doc('/docs', {
@@ -231,12 +338,14 @@ app.doc('/docs', {
 });
 
 app.get('/.well-known/agent.json', c => {
+  const baseUrl = resolveAgentBaseUrl(c.env.ENVIRONMENT);
   return c.json({
     name: 'CROW Analytics Agent',
     description:
       'AI-powered retail analytics assistant with access to product catalog, customer interactions, and behavioral patterns',
-    url: 'https://dev.internal.chat.crowai.dev',
+    url: baseUrl,
     version: '1.0.0',
+    provider: { organization: 'CROW AI', url: 'https://crowai.dev' },
     capabilities: {
       streaming: false,
       pushNotifications: false,
@@ -266,7 +375,7 @@ app.get('/.well-known/agent.json', c => {
       },
     ],
     authentication: {
-      schemes: ['ApiKey'],
+      schemes: ['apiKey'],
       credentials: null,
     },
   });
@@ -278,16 +387,27 @@ app.post('/a2a/tasks/send', async c => {
     c.req.header('Authorization')?.replace('Bearer ', '');
   if (!apiKey) return c.json({ error: 'API key required' }, 401);
 
-  if (c.env.INTERNAL_API_KEY && apiKey !== c.env.INTERNAL_API_KEY)
+  // Always require a valid INTERNAL_API_KEY — reject if not set or if key doesn't match
+  if (!c.env.INTERNAL_API_KEY || apiKey !== c.env.INTERNAL_API_KEY)
     return c.json({ error: 'Invalid API key' }, 401);
 
   const body = await c.req.json();
   const taskId = body.id || crypto.randomUUID();
   const userMessage: string =
     body.message?.parts?.[0]?.text || body.message?.content || '';
-  const organizationId: string = body.metadata?.organizationId || 'default';
+  if (!userMessage)
+    return c.json(
+      { error: 'Bad Request', message: 'message content is required' },
+      400
+    );
+  const organizationId: string | undefined = body.metadata?.organizationId;
+  if (!organizationId)
+    return c.json(
+      { error: 'Bad Request', message: 'metadata.organizationId is required' },
+      400
+    );
 
-  const responseText = await runCrewAgenticLoop(
+  const agenticResult = await runCrewAgenticLoop(
     [{ role: 'user', content: userMessage }],
     organizationId,
     c.env.API_GATEWAY_URL,
@@ -300,7 +420,10 @@ app.post('/a2a/tasks/send', async c => {
     status: { state: 'completed' },
     artifacts: [
       {
-        parts: [{ type: 'text', text: responseText }],
+        parts: [{ type: 'text', text: agenticResult.content }],
+        metadata: {
+          references: agenticResult.references,
+        },
       },
     ],
   });
