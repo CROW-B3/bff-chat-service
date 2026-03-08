@@ -8,7 +8,7 @@ export const HelloWorldRoute = createRoute({
     200: {
       content: {
         'application/json': {
-          schema: z.object({ status: z.string(), service: z.string() }),
+          schema: z.object({ status: z.string() }),
         },
       },
       description: 'Health check',
@@ -68,6 +68,15 @@ export const SendMessageRoute = createRoute({
               id: z.string(),
               role: z.string(),
               content: z.string(),
+              references: z
+                .array(
+                  z.object({
+                    index: z.number(),
+                    type: z.string(),
+                    label: z.string(),
+                  })
+                )
+                .nullable(),
               createdAt: z.number(),
             }),
           }),
@@ -99,6 +108,15 @@ export const GetMessagesRoute = createRoute({
                 sessionId: z.string(),
                 role: z.string(),
                 content: z.string(),
+                references: z
+                  .array(
+                    z.object({
+                      index: z.number(),
+                      type: z.string(),
+                      label: z.string(),
+                    })
+                  )
+                  .nullable(),
                 createdAt: z.number(),
               })
             ),
