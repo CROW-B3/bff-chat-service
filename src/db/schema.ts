@@ -12,5 +12,6 @@ export const chatMessage = sqliteTable('chat_message', {
   sessionId: text('session_id').notNull(),
   role: text('role').notNull(),
   content: text('content').notNull(),
+  references: text('references'),
   createdAt: integer('created_at').notNull(),
 });
