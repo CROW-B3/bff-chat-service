@@ -7,7 +7,25 @@ export interface Environment {
   ENVIRONMENT: string;
   API_GATEWAY_URL: string;
   INTERNAL_API_KEY?: string;
+  INTERNAL_GATEWAY_KEY: string;
   CHAT_CREW_CONTAINER: DurableObjectNamespace;
+}
+
+export interface ToolExecutionContext {
+  organizationId: string;
+  apiGatewayUrl: string;
+  internalGatewayKey: string;
+}
+
+export interface SourceReference {
+  index: number;
+  type: 'product' | 'interaction' | 'pattern';
+  label: string;
+}
+
+export interface AgenticLoopResult {
+  content: string;
+  references: SourceReference[];
 }
 
 export const HelloWorldSchema = z
