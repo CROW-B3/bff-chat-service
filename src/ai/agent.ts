@@ -83,37 +83,66 @@ export async function runAgenticLoop(
   ai: Ai,
   internalGatewayKey: string
 ): Promise<AgenticLoopResult> {
-  const systemPrompt = buildSystemPrompt(organizationId);
-  const currentMessages = [...messages];
-  const context = buildToolExecutionContext(
-    organizationId,
-    apiGatewayUrl,
-    internalGatewayKey
-  );
-  const accumulatedReferences: SourceReference[] = [];
+  try {
+    const systemPrompt = buildSystemPrompt(organizationId);
+    const currentMessages = [...messages];
+    const context = buildToolExecutionContext(
+      organizationId,
+      apiGatewayUrl,
+      internalGatewayKey
+    );
+    const accumulatedReferences: SourceReference[] = [];
 
-  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-    const maybeResult = await executeAgenticIteration(
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+      const maybeResult = await executeAgenticIteration(
+        currentMessages,
+        systemPrompt,
+        ai,
+        context,
+        accumulatedReferences
+      );
+      if (maybeResult) return maybeResult;
+    }
+
+    const finalResult = await callWithTools(
       currentMessages,
       systemPrompt,
       ai,
-      context,
-      accumulatedReferences
+      false
     );
-    if (maybeResult) return maybeResult;
+    const footnotes = formatReferencesAsFootnotes(accumulatedReferences);
+    const content =
+      (finalResult.response ??
+        'I was unable to generate a response after analysis.') + footnotes;
+    return { content, references: accumulatedReferences };
+  } catch (err) {
+    console.error('Agentic loop error:', err);
+    // Fallback: try a simple completion without tools
+    try {
+      const simpleResult = await ai.run(
+        AI_MODEL as keyof AiModels,
+        {
+          messages: [
+            { role: 'system', content: buildSystemPrompt(organizationId) },
+            ...messages,
+          ],
+        } as Parameters<Ai['run']>[1]
+      );
+      const result = simpleResult as AiRunResult;
+      return {
+        content:
+          result.response ??
+          'I apologize, I encountered an issue processing your request. Please try again.',
+        references: [],
+      };
+    } catch {
+      return {
+        content:
+          'I apologize, I encountered an issue processing your request. Please try again.',
+        references: [],
+      };
+    }
   }
-
-  const finalResult = await callWithTools(
-    currentMessages,
-    systemPrompt,
-    ai,
-    false
-  );
-  const footnotes = formatReferencesAsFootnotes(accumulatedReferences);
-  const content =
-    (finalResult.response ??
-      'I was unable to generate a response after analysis.') + footnotes;
-  return { content, references: accumulatedReferences };
 }
 
 export async function runCrewAgenticLoop(

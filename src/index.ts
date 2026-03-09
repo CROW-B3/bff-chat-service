@@ -98,10 +98,20 @@ app.openapi(HelloWorldRoute, c => c.json({ status: 'ok' }));
 
 app.openapi(CreateSessionRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
-  const { organizationId } = c.req.valid('json');
-  // BOLA: use gateway-injected org, reject if caller claims a different org
+  const body = c.req.valid('json');
   const callerOrgId = c.req.header('X-Organization-Id');
-  if (!callerOrgId || callerOrgId !== organizationId) {
+  const organizationId = callerOrgId || body.organizationId;
+  if (!organizationId) {
+    return c.json(
+      { error: 'Bad Request', message: 'Organization ID required' },
+      400
+    ) as never;
+  }
+  if (
+    body.organizationId &&
+    callerOrgId &&
+    body.organizationId !== callerOrgId
+  ) {
     return c.json(
       { error: 'Forbidden', message: 'Organization mismatch' },
       403
@@ -114,7 +124,7 @@ app.openapi(CreateSessionRoute, async c => {
 
   await database.insert(schema.chatSession).values({
     id: sessionId,
-    organizationId: callerOrgId,
+    organizationId: organizationId as string,
     userId,
     createdAt: now,
   });
@@ -125,15 +135,26 @@ app.openapi(CreateSessionRoute, async c => {
 app.openapi(SendMessageRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
   const { sessionId } = c.req.valid('param');
-  const { content, organizationId } = c.req.valid('json');
-  // BOLA: verify the session belongs to the caller's org
+  const body = c.req.valid('json');
   const callerOrgId = c.req.header('X-Organization-Id');
-  if (!callerOrgId || callerOrgId !== organizationId) {
+  const organizationId = callerOrgId || body.organizationId;
+  if (!organizationId) {
+    return c.json(
+      { error: 'Bad Request', message: 'Organization ID required' },
+      400
+    ) as never;
+  }
+  if (
+    body.organizationId &&
+    callerOrgId &&
+    body.organizationId !== callerOrgId
+  ) {
     return c.json(
       { error: 'Forbidden', message: 'Organization mismatch' },
       403
     ) as never;
   }
+  const content = body.content;
   // Verify session belongs to caller's org
   const session = await database
     .select()
@@ -159,13 +180,26 @@ app.openapi(SendMessageRoute, async c => {
   });
 
   const contextMessages = await fetchRecentMessages(database, sessionId);
-  const agenticResult = await runCrewAgenticLoop(
-    contextMessages,
-    organizationId,
-    c.env.API_GATEWAY_URL,
-    c.env.AI,
-    c.env
-  );
+  let agenticResult: {
+    content: string;
+    references: Array<{ index: number; type: string; label: string }>;
+  };
+  try {
+    agenticResult = await runCrewAgenticLoop(
+      contextMessages,
+      organizationId as string,
+      c.env.API_GATEWAY_URL,
+      c.env.AI,
+      c.env
+    );
+  } catch (agentErr) {
+    console.error('Agent loop failed:', agentErr);
+    agenticResult = {
+      content:
+        'I apologize, I encountered an issue processing your request. Please try again.',
+      references: [],
+    };
+  }
 
   const assistantMessageId = crypto.randomUUID();
   const assistantNow = Date.now();
