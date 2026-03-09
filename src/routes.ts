@@ -24,7 +24,7 @@ export const CreateSessionRoute = createRoute({
       content: {
         'application/json': {
           schema: z.object({
-            organizationId: z.string(),
+            organizationId: z.string().optional(),
             userId: z.string().optional(),
           }),
         },
@@ -53,7 +53,7 @@ export const SendMessageRoute = createRoute({
         'application/json': {
           schema: z.object({
             content: z.string(),
-            organizationId: z.string(),
+            organizationId: z.string().optional(),
           }),
         },
       },
