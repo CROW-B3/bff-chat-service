@@ -1,0 +1,15 @@
+meta {
+  name: Agent Card
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/.well-known/agent.json
+  body: none
+  auth: none
+}
+
+headers {
+  Content-Type: application/json
+}

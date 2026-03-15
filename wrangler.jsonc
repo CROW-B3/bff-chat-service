@@ -8,14 +8,34 @@
     "enabled": true,
     "head_sampling_rate": 1,
   },
+  "ai": {
+    "binding": "AI",
+  },
   "vars": {
     "ENVIRONMENT": "prod",
+    "API_GATEWAY_URL": "https://api.crowai.dev",
   },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
+    ]
+  },
+  "containers": [
+    {
+      "class_name": "ChatCrewContainer",
+      "image": "./Dockerfile",
+      "max_instances": 3
+    }
+  ],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ChatCrewContainer"] }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "crow-bff-chat-service-db",
-      "database_id": "356a1a49-f09b-4987-8a60-0bd76fb9f6f5"
+      "database_id": "356a1a49-f09b-4987-8a60-0bd76fb9f6f5",
+      "migrations_dir": "migrations",
     }
   ],
   "r2_buckets": [
@@ -29,9 +49,26 @@
   ],
   "env": {
     "dev": {
+      "ai": {
+        "binding": "AI",
+      },
       "vars": {
         "ENVIRONMENT": "dev",
+        "API_GATEWAY_URL": "https://dev.api.crowai.dev",
       },
+      "durable_objects": {
+        "bindings": [
+          { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
+        ]
+      },
+      "containers": [
+        {
+          "class_name": "ChatCrewContainer",
+          "name": "chat-crew-container",
+          "image": "./Dockerfile",
+          "max_instances": 3
+        }
+      ],
       "routes": [
         { "pattern": "dev.internal.chat.crowai.dev", "custom_domain": true }
       ],
@@ -39,7 +76,8 @@
         {
           "binding": "DB",
           "database_name": "crow-bff-chat-service-db-dev",
-          "database_id": "069bef70-1940-4d23-b996-172d7391f351"
+          "database_id": "53f66df0-a9b6-46bd-a99e-7b8087015c41",
+          "migrations_dir": "migrations",
         }
       ],
       "r2_buckets": [
@@ -50,14 +88,19 @@
       ]
     },
     "local": {
+      "ai": {
+        "binding": "AI",
+      },
       "vars": {
         "ENVIRONMENT": "local",
+        "API_GATEWAY_URL": "http://localhost:8787",
       },
       "d1_databases": [
         {
           "binding": "DB",
           "database_name": "crow-bff-chat-service-db-local",
-          "database_id": "45b02f1a-9d64-48b1-bd7a-9a78999d1f66"
+          "database_id": "45b02f1a-9d64-48b1-bd7a-9a78999d1f66",
+          "migrations_dir": "migrations",
         }
       ],
       "r2_buckets": [
