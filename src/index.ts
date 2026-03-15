@@ -95,6 +95,7 @@ app.onError((err, c) => {
 });
 
 app.openapi(HelloWorldRoute, c => c.json({ status: 'ok' }));
+app.get('/health', c => c.json({ status: 'ok' }));
 
 app.openapi(CreateSessionRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
