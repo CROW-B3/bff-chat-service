@@ -51,10 +51,20 @@ export const SendMessageRoute = createRoute({
     body: {
       content: {
         'application/json': {
-          schema: z.object({
-            content: z.string(),
-            organizationId: z.string().optional(),
-          }),
+          schema: z
+            .object({
+              content: z.string().optional(),
+              message: z.string().optional(),
+              organizationId: z.string().optional(),
+            })
+            .transform(data => ({
+              content: data.content ?? data.message ?? '',
+              organizationId: data.organizationId,
+            }))
+            .refine(data => data.content.length > 0, {
+              message: 'content or message field is required',
+              path: ['content'],
+            }),
         },
       },
     },
