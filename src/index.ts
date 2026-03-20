@@ -77,6 +77,15 @@ const app = new OpenAPIHono<{ Bindings: Environment }>({
 });
 app.use(logger());
 
+// Verify X-Internal-Key on all /api/* routes
+app.use('/api/*', async (c, next) => {
+  const key = c.req.header('X-Internal-Key');
+  if (!key || key !== c.env.INTERNAL_GATEWAY_KEY) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+  return next();
+});
+
 app.onError((err, c) => {
   const errorName = err instanceof Error ? err.name : '';
   const errorMessage = err instanceof Error ? err.message : '';
@@ -95,6 +104,7 @@ app.onError((err, c) => {
 });
 
 app.openapi(HelloWorldRoute, c => c.json({ status: 'ok' }));
+app.get('/health', c => c.json({ status: 'ok' }));
 
 app.openapi(CreateSessionRoute, async c => {
   const database = drizzle(c.env.DB, { schema });
@@ -161,7 +171,7 @@ app.openapi(SendMessageRoute, async c => {
     .from(schema.chatSession)
     .where(eq(schema.chatSession.id, sessionId))
     .get();
-  if (!session || session.organizationId !== callerOrgId) {
+  if (!session || session.organizationId !== organizationId) {
     return c.json(
       { error: 'Forbidden', message: 'Session not found or access denied' },
       403
@@ -301,6 +311,11 @@ app.openapi(GetSessionsByOrgRoute, async c => {
   )
     .bind(orgId)
     .all();
+
+  // Session lists must not be cached by the API gateway — they change immediately
+  // when sessions are created or deleted, so stale cache would cause test failures
+  // and misleading UI state. Instruct the gateway (and any CDN) not to cache.
+  c.res.headers.set('Cache-Control', 'no-store');
 
   return c.json({
     sessions: (rows.results as Record<string, unknown>[]).map(row => ({
