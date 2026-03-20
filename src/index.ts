@@ -165,7 +165,6 @@ app.openapi(SendMessageRoute, async c => {
     ) as never;
   }
   const content = body.content;
-  // Verify session belongs to caller's org
   const session = await database
     .select()
     .from(schema.chatSession)
@@ -244,7 +243,6 @@ app.openapi(GetMessagesRoute, async c => {
   const { sessionId } = c.req.valid('param');
   const { page: pageStr, limit: limitStr } = c.req.valid('query');
 
-  // BOLA: verify session belongs to caller's org before returning messages
   const callerOrgId = c.req.header('X-Organization-Id');
   if (!callerOrgId) {
     return c.json(
@@ -312,9 +310,6 @@ app.openapi(GetSessionsByOrgRoute, async c => {
     .bind(orgId)
     .all();
 
-  // Session lists must not be cached by the API gateway — they change immediately
-  // when sessions are created or deleted, so stale cache would cause test failures
-  // and misleading UI state. Instruct the gateway (and any CDN) not to cache.
   c.res.headers.set('Cache-Control', 'no-store');
 
   return c.json({
@@ -436,7 +431,6 @@ app.post('/a2a/tasks/send', async c => {
     c.req.header('Authorization')?.replace('Bearer ', '');
   if (!apiKey) return c.json({ error: 'API key required' }, 401);
 
-  // Always require a valid INTERNAL_API_KEY — reject if not set or if key doesn't match
   if (!c.env.INTERNAL_API_KEY || apiKey !== c.env.INTERNAL_API_KEY)
     return c.json({ error: 'Invalid API key' }, 401);
 
