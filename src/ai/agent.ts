@@ -117,7 +117,6 @@ export async function runAgenticLoop(
     return { content, references: accumulatedReferences };
   } catch (err) {
     console.error('Agentic loop error:', err);
-    // Fallback: try a simple completion without tools
     try {
       const simpleResult = await ai.run(
         AI_MODEL as keyof AiModels,
