@@ -14,6 +14,7 @@
   "vars": {
     "ENVIRONMENT": "prod",
     "API_GATEWAY_URL": "https://api.crowai.dev",
+    "AI_GATEWAY_ID": "crow-ai-gateway",
   },
   "durable_objects": {
     "bindings": [
@@ -55,6 +56,7 @@
       "vars": {
         "ENVIRONMENT": "dev",
         "API_GATEWAY_URL": "https://dev.api.crowai.dev",
+        "AI_GATEWAY_ID": "crow-ai-gateway",
       },
       "durable_objects": {
         "bindings": [
@@ -94,6 +96,7 @@
       "vars": {
         "ENVIRONMENT": "local",
         "API_GATEWAY_URL": "http://localhost:8787",
+        "AI_GATEWAY_ID": "crow-ai-gateway",
       },
       "d1_databases": [
         {

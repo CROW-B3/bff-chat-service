@@ -31,7 +31,8 @@ async function callWithTools(
   };
   const response = await ai.run(
     AI_MODEL as keyof AiModels,
-    payload as Parameters<Ai['run']>[1]
+    payload as Parameters<Ai['run']>[1],
+    { gateway: { id: 'crow-ai-gateway', skipCache: false } }
   );
   return response as AiRunResult;
 }
@@ -125,7 +126,8 @@ export async function runAgenticLoop(
             { role: 'system', content: buildSystemPrompt(organizationId) },
             ...messages,
           ],
-        } as Parameters<Ai['run']>[1]
+        } as Parameters<Ai['run']>[1],
+        { gateway: { id: 'crow-ai-gateway', skipCache: false } }
       );
       const result = simpleResult as AiRunResult;
       return {
