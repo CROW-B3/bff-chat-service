@@ -104,9 +104,10 @@ function buildProductSearchUrl(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): string {
-  const base = `${context.apiGatewayUrl}/api/v1/products/organization/${context.organizationId}/search`;
+  const base = `${context.apiGatewayUrl}/api/v1/products/search`;
   const url = new URL(base);
   url.searchParams.set('q', args.query as string);
+  url.searchParams.set('organizationId', context.organizationId);
   url.searchParams.set('limit', String(args.limit ?? 10));
   return url.toString();
 }
