@@ -93,6 +93,10 @@ async function fetchJson(
   const response = await fetch(url, {
     headers: buildAuthHeaders(context),
   });
+  if (!response.ok) {
+    console.error(`Tool fetch failed: ${response.status} ${url}`);
+    return { results: [], total: 0 };
+  }
   return response.json();
 }
 
