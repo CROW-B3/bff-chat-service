@@ -417,6 +417,13 @@ app.get('/.well-known/agent.json', c => {
         description: 'Get AI-generated behavioral pattern insights',
         tags: ['patterns', 'insights', 'trends'],
       },
+      {
+        id: 'org-context',
+        name: 'Organization Context',
+        description:
+          'Search organization knowledge base including company overview, products summary, and target market',
+        tags: ['organization', 'context', 'knowledge'],
+      },
     ],
     authentication: {
       schemes: ['apiKey'],
