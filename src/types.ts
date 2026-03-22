@@ -8,6 +8,7 @@ export interface Environment {
   API_GATEWAY_URL: string;
   INTERNAL_API_KEY?: string;
   INTERNAL_GATEWAY_KEY: string;
+  QNA_SERVICE_URL: string;
   CHAT_CREW_CONTAINER: DurableObjectNamespace;
 }
 
@@ -15,11 +16,12 @@ export interface ToolExecutionContext {
   organizationId: string;
   apiGatewayUrl: string;
   internalGatewayKey: string;
+  qnaServiceUrl: string;
 }
 
 export interface SourceReference {
   index: number;
-  type: 'product' | 'interaction' | 'pattern';
+  type: 'product' | 'interaction' | 'pattern' | 'org_context';
   label: string;
 }
 

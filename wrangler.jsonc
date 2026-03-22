@@ -15,6 +15,7 @@
     "ENVIRONMENT": "prod",
     "API_GATEWAY_URL": "https://api.crowai.dev",
     "AI_GATEWAY_ID": "crow-ai-gateway",
+    "QNA_SERVICE_URL": "https://internal.qna.crowai.dev",
   },
   "durable_objects": {
     "bindings": [
@@ -57,6 +58,7 @@
         "ENVIRONMENT": "dev",
         "API_GATEWAY_URL": "https://dev.api.crowai.dev",
         "AI_GATEWAY_ID": "crow-ai-gateway",
+        "QNA_SERVICE_URL": "https://dev.internal.qna.crowai.dev",
       },
       "durable_objects": {
         "bindings": [
@@ -97,6 +99,7 @@
         "ENVIRONMENT": "local",
         "API_GATEWAY_URL": "http://localhost:8787",
         "AI_GATEWAY_ID": "crow-ai-gateway",
+        "QNA_SERVICE_URL": "http://localhost:8787",
       },
       "d1_databases": [
         {

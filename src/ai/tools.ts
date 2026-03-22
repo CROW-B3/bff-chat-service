@@ -8,17 +8,12 @@ export const TOOLS = [
   {
     name: 'search_products',
     description:
-      "Search the organization's product catalog using semantic/vector or full-text search",
+      "Semantic search across the organization's product catalog using vectorize",
     parameters: {
       type: 'object',
       properties: {
         query: { type: 'string', description: 'Search query' },
-        mode: {
-          type: 'string',
-          enum: ['semantic', 'fts', 'hybrid'],
-          description: 'Search mode',
-        },
-        limit: { type: 'number', description: 'Max results' },
+        limit: { type: 'number', description: 'Max results (default 10)' },
       },
       required: ['query'],
     },
@@ -26,21 +21,15 @@ export const TOOLS = [
   {
     name: 'search_interactions',
     description:
-      'Search customer interaction history (web visits, CCTV footage analysis, social media)',
+      'Semantic search across customer interaction history (web visits, CCTV footage analysis, social media) using vectorize',
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Text search query to filter interactions',
+          description: 'Semantic search query for interactions',
         },
-        sourceType: {
-          type: 'string',
-          enum: ['web', 'cctv', 'social'],
-          description: 'Filter by source',
-        },
-        limit: { type: 'number', description: 'Max results' },
-        page: { type: 'number', description: 'Page number' },
+        limit: { type: 'number', description: 'Max results (default 10)' },
       },
       required: ['query'],
     },
@@ -48,18 +37,29 @@ export const TOOLS = [
   {
     name: 'search_patterns',
     description:
-      'Search AI-analyzed behavioral patterns and insights for the organization',
+      'Semantic search across AI-analyzed behavioral patterns and insights using vectorize',
     parameters: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Text search query to filter pattern insights',
+          description: 'Semantic search query for pattern insights',
         },
-        period: {
+        limit: { type: 'number', description: 'Max results (default 5)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'search_org_context',
+    description:
+      'Search organization context including company overview, products summary, target market, and general knowledge base via QnA vectorize',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: {
           type: 'string',
-          enum: ['daily', 'weekly', 'monthly', 'yearly'],
-          description: 'Time period',
+          description: 'Search query about the organization',
         },
       },
       required: ['query'],
@@ -67,7 +67,18 @@ export const TOOLS = [
   },
 ];
 
-function buildAuthenticatedHeaders(context: ToolExecutionContext): HeadersInit {
+interface ToolResult {
+  results: Array<{
+    id: string;
+    content: string;
+    score: number;
+    source: string;
+    metadata: Record<string, unknown>;
+  }>;
+  total: number;
+}
+
+function buildAuthHeaders(context: ToolExecutionContext): HeadersInit {
   return {
     'X-Internal-Key': context.internalGatewayKey,
     'X-Organization-Id': context.organizationId,
@@ -75,12 +86,12 @@ function buildAuthenticatedHeaders(context: ToolExecutionContext): HeadersInit {
   };
 }
 
-async function fetchFromGateway(
+async function fetchJson(
   url: string,
   context: ToolExecutionContext
 ): Promise<unknown> {
   const response = await fetch(url, {
-    headers: buildAuthenticatedHeaders(context),
+    headers: buildAuthHeaders(context),
   });
   return response.json();
 }
@@ -89,10 +100,9 @@ function buildProductSearchUrl(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): string {
-  const url = new URL(`${context.apiGatewayUrl}/api/v1/products/search`);
+  const base = `${context.apiGatewayUrl}/api/v1/products/organization/${context.organizationId}/search`;
+  const url = new URL(base);
   url.searchParams.set('q', args.query as string);
-  url.searchParams.set('organizationId', context.organizationId);
-  url.searchParams.set('mode', (args.mode as string) ?? 'hybrid');
   url.searchParams.set('limit', String(args.limit ?? 10));
   return url.toString();
 }
@@ -101,14 +111,10 @@ function buildInteractionSearchUrl(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): string {
-  const url = new URL(
-    `${context.apiGatewayUrl}/api/v1/interactions/organization/${context.organizationId}`
-  );
-  if (args.query) url.searchParams.set('query', args.query as string);
-  if (args.sourceType)
-    url.searchParams.set('sourceType', args.sourceType as string);
-  if (args.limit) url.searchParams.set('limit', String(args.limit));
-  if (args.page) url.searchParams.set('page', String(args.page));
+  const base = `${context.apiGatewayUrl}/api/v1/interactions/organization/${context.organizationId}/search`;
+  const url = new URL(base);
+  url.searchParams.set('q', args.query as string);
+  url.searchParams.set('limit', String(args.limit ?? 10));
   return url.toString();
 }
 
@@ -116,117 +122,195 @@ function buildPatternSearchUrl(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): string {
-  const url = new URL(
-    `${context.apiGatewayUrl}/api/v1/patterns/organization/${context.organizationId}`
-  );
-  if (args.query) url.searchParams.set('query', args.query as string);
-  if (args.period) url.searchParams.set('period', args.period as string);
+  const base = `${context.apiGatewayUrl}/api/v1/patterns/organization/${context.organizationId}/search`;
+  const url = new URL(base);
+  url.searchParams.set('q', args.query as string);
+  url.searchParams.set('topK', String(args.limit ?? 5));
   return url.toString();
 }
 
-function resolveToolUrl(
-  toolName: string,
+function buildOrgContextSearchUrl(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): string {
-  switch (toolName) {
-    case 'search_products':
-      return buildProductSearchUrl(args, context);
-    case 'search_interactions':
-      return buildInteractionSearchUrl(args, context);
-    case 'search_patterns':
-      return buildPatternSearchUrl(args, context);
-    default:
-      throw new Error(`Unknown tool: ${toolName}`);
-  }
+  const base = `${context.qnaServiceUrl}/api/v1/qna/search`;
+  const url = new URL(base);
+  url.searchParams.set('q', args.query as string);
+  url.searchParams.set('organizationId', context.organizationId);
+  return url.toString();
 }
+
+function normalizeProductResult(raw: unknown): ToolResult {
+  const data = (raw ?? {}) as Record<string, unknown>;
+  const items = extractArray(data, 'results');
+  const mapped = items.map(item => {
+    const r = item as Record<string, unknown>;
+    return {
+      id: String(r.id ?? ''),
+      content: String(r.description ?? r.title ?? ''),
+      score: Number(r.score ?? 0),
+      source: 'product',
+      metadata: {
+        title: r.title,
+        ...omitKeys(r, ['id', 'description', 'score']),
+      },
+    };
+  });
+  return { results: mapped, total: Number(data.total ?? mapped.length) };
+}
+
+function normalizeInteractionResult(raw: unknown): ToolResult {
+  const data = (raw ?? {}) as Record<string, unknown>;
+  const items = extractArray(data, 'results');
+  const mapped = items.map(item => {
+    const r = item as Record<string, unknown>;
+    return {
+      id: String(r.id ?? ''),
+      content: String(r.summary ?? r.description ?? ''),
+      score: Number(r.score ?? 0),
+      source: `interaction:${r.sourceType ?? 'unknown'}`,
+      metadata: omitKeys(r, ['id', 'summary', 'score']),
+    };
+  });
+  return { results: mapped, total: Number(data.total ?? mapped.length) };
+}
+
+function normalizePatternResult(raw: unknown): ToolResult {
+  const data = (raw ?? {}) as Record<string, unknown>;
+  const items = extractArray(data, 'results');
+  const mapped = items.map(item => {
+    const r = item as Record<string, unknown>;
+    return {
+      id: String(r.id ?? ''),
+      content: String(r.description ?? r.type ?? ''),
+      score: Number(r.score ?? 0),
+      source: 'pattern',
+      metadata: {
+        type: r.type,
+        ...omitKeys(r, ['id', 'description', 'score']),
+      },
+    };
+  });
+  return { results: mapped, total: Number(data.total ?? mapped.length) };
+}
+
+function normalizeOrgContextResult(raw: unknown): ToolResult {
+  const data = (raw ?? {}) as Record<string, unknown>;
+  const items = extractArray(data, 'results');
+  const mapped = items.map((item, idx) => {
+    const r = item as Record<string, unknown>;
+    return {
+      id: String(r.id ?? `qna-${idx}`),
+      content: String(r.content ?? r.text ?? ''),
+      score: Number(r.score ?? 0),
+      source: `org_context:${r.type ?? 'general'}`,
+      metadata: omitKeys(r, ['id', 'content', 'score']),
+    };
+  });
+  return { results: mapped, total: Number(data.total ?? mapped.length) };
+}
+
+function extractArray(data: Record<string, unknown>, key: string): unknown[] {
+  if (Array.isArray(data[key])) return data[key] as unknown[];
+  if (Array.isArray(data.data)) return data.data as unknown[];
+  if (Array.isArray(data)) return data as unknown[];
+  return [];
+}
+
+function omitKeys(
+  obj: Record<string, unknown>,
+  keys: string[]
+): Record<string, unknown> {
+  const keysSet = new Set(keys);
+  return Object.fromEntries(
+    Object.entries(obj).filter(([k]) => !keysSet.has(k))
+  );
+}
+
+type ToolUrlBuilder = (
+  args: Record<string, unknown>,
+  context: ToolExecutionContext
+) => string;
+
+type ResultNormalizer = (raw: unknown) => ToolResult;
+
+const TOOL_CONFIG: Record<
+  string,
+  { buildUrl: ToolUrlBuilder; normalize: ResultNormalizer }
+> = {
+  search_products: {
+    buildUrl: buildProductSearchUrl,
+    normalize: normalizeProductResult,
+  },
+  search_interactions: {
+    buildUrl: buildInteractionSearchUrl,
+    normalize: normalizeInteractionResult,
+  },
+  search_patterns: {
+    buildUrl: buildPatternSearchUrl,
+    normalize: normalizePatternResult,
+  },
+  search_org_context: {
+    buildUrl: buildOrgContextSearchUrl,
+    normalize: normalizeOrgContextResult,
+  },
+};
 
 export async function executeTool(
   toolName: string,
   args: Record<string, unknown>,
   context: ToolExecutionContext
-): Promise<unknown> {
-  const url = resolveToolUrl(toolName, args, context);
-  return fetchFromGateway(url, context);
+): Promise<ToolResult> {
+  const config = TOOL_CONFIG[toolName];
+  if (!config) throw new Error(`Unknown tool: ${toolName}`);
+  const url = config.buildUrl(args, context);
+  const raw = await fetchJson(url, context);
+  return config.normalize(raw);
 }
 
-function extractProductReferences(
-  data: unknown,
+function buildReferencesFromResult(
+  toolName: string,
+  result: ToolResult,
   startIndex: number
 ): SourceReference[] {
-  const products = extractArrayFromResponse(data, 'products');
-  return products.map((product, offset) => ({
+  return result.results.map((item, offset) => ({
     index: startIndex + offset + 1,
-    type: 'product' as const,
-    label: `Product: "${(product as Record<string, unknown>).name ?? (product as Record<string, unknown>).title ?? 'Unknown'}"`,
+    type: resolveReferenceType(toolName),
+    label: buildReferenceLabel(toolName, item),
   }));
 }
 
-function extractInteractionReferences(
-  data: unknown,
-  startIndex: number
-): SourceReference[] {
-  const interactions = extractArrayFromResponse(data, 'interactions');
-  return interactions.map((interaction, offset) => {
-    const record = interaction as Record<string, unknown>;
-    const source = (record.source ?? record.sourceType ?? 'unknown') as string;
-    const date = formatReferenceDate(record.createdAt ?? record.date);
-    return {
-      index: startIndex + offset + 1,
-      type: 'interaction' as const,
-      label: `Interaction #${record.id ?? offset + 1} (${source}, ${date})`,
-    };
-  });
+function resolveReferenceType(toolName: string): SourceReference['type'] {
+  const typeMap: Record<string, SourceReference['type']> = {
+    search_products: 'product',
+    search_interactions: 'interaction',
+    search_patterns: 'pattern',
+    search_org_context: 'org_context',
+  };
+  return typeMap[toolName] ?? 'product';
 }
 
-function extractPatternReferences(
-  data: unknown,
-  startIndex: number
-): SourceReference[] {
-  const patterns = extractArrayFromResponse(data, 'patterns');
-  return patterns.map((pattern, offset) => {
-    const record = pattern as Record<string, unknown>;
-    const title = (record.title ?? record.type ?? 'Insight') as string;
-    return {
-      index: startIndex + offset + 1,
-      type: 'pattern' as const,
-      label: `Pattern: "${title}"`,
-    };
-  });
-}
-
-function extractArrayFromResponse(data: unknown, key: string): unknown[] {
-  if (!data || typeof data !== 'object') return [];
-  const record = data as Record<string, unknown>;
-  if (Array.isArray(record[key])) return record[key] as unknown[];
-  if (Array.isArray(record.data)) return record.data as unknown[];
-  if (Array.isArray(data)) return data as unknown[];
-  return [];
-}
-
-function formatReferenceDate(value: unknown): string {
-  if (!value) return 'unknown date';
-  if (typeof value === 'number')
-    return new Date(value).toISOString().split('T')[0];
-  if (typeof value === 'string') return value.split('T')[0];
-  return 'unknown date';
-}
-
-function extractReferencesForTool(
+function buildReferenceLabel(
   toolName: string,
-  data: unknown,
-  startIndex: number
-): SourceReference[] {
-  switch (toolName) {
-    case 'search_products':
-      return extractProductReferences(data, startIndex);
-    case 'search_interactions':
-      return extractInteractionReferences(data, startIndex);
-    case 'search_patterns':
-      return extractPatternReferences(data, startIndex);
-    default:
-      return [];
+  item: ToolResult['results'][number]
+): string {
+  if (toolName === 'search_products') {
+    const title = (item.metadata.title as string) ?? 'Unknown';
+    return `Product: "${title}"`;
   }
+  if (toolName === 'search_interactions') {
+    const sourceType = item.source.replace('interaction:', '');
+    return `Interaction #${item.id} (${sourceType})`;
+  }
+  if (toolName === 'search_patterns') {
+    const patternType = (item.metadata.type as string) ?? 'Insight';
+    return `Pattern: "${patternType}"`;
+  }
+  if (toolName === 'search_org_context') {
+    const contextType = item.source.replace('org_context:', '');
+    return `Org Context: ${contextType}`;
+  }
+  return `Source: ${item.id}`;
 }
 
 export interface ToolExecutionResult {
@@ -247,7 +331,7 @@ export async function executeToolCallsWithReferences(
           toolCall.arguments ?? {},
           context
         );
-        const newReferences = extractReferencesForTool(
+        const newReferences = buildReferencesFromResult(
           toolCall.name,
           toolResult,
           allReferences.length
