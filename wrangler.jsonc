@@ -11,27 +11,16 @@
   "ai": {
     "binding": "AI",
   },
+  "migrations": [
+    { "tag": "v1", "new_classes": ["ChatCrewContainer"] },
+    { "tag": "v2", "deleted_classes": ["ChatCrewContainer"] }
+  ],
   "vars": {
     "ENVIRONMENT": "prod",
     "API_GATEWAY_URL": "https://api.crowai.dev",
     "AI_GATEWAY_ID": "crow-ai-gateway",
     "QNA_SERVICE_URL": "https://internal.qna.crowai.dev",
   },
-  "durable_objects": {
-    "bindings": [
-      { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
-    ]
-  },
-  "containers": [
-    {
-      "class_name": "ChatCrewContainer",
-      "image": "./Dockerfile",
-      "max_instances": 3
-    }
-  ],
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ChatCrewContainer"] }
-  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -60,19 +49,6 @@
         "AI_GATEWAY_ID": "crow-ai-gateway",
         "QNA_SERVICE_URL": "https://dev.internal.qna.crowai.dev",
       },
-      "durable_objects": {
-        "bindings": [
-          { "name": "CHAT_CREW_CONTAINER", "class_name": "ChatCrewContainer" }
-        ]
-      },
-      "containers": [
-        {
-          "class_name": "ChatCrewContainer",
-          "name": "chat-crew-container",
-          "image": "./Dockerfile",
-          "max_instances": 3
-        }
-      ],
       "routes": [
         { "pattern": "dev.internal.chat.crowai.dev", "custom_domain": true }
       ],

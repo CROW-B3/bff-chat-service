@@ -9,7 +9,7 @@ export interface Environment {
   INTERNAL_API_KEY?: string;
   INTERNAL_GATEWAY_KEY: string;
   QNA_SERVICE_URL: string;
-  CHAT_CREW_CONTAINER: DurableObjectNamespace;
+  CHAT_CREW_CONTAINER?: DurableObjectNamespace;
 }
 
 export interface ToolExecutionContext {

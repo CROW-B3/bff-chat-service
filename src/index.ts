@@ -1,6 +1,5 @@
 import type { Environment } from './types';
 import { OpenAPIHono } from '@hono/zod-openapi';
-import { DurableObject } from 'cloudflare:workers';
 import { desc, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/d1';
 import { logger } from 'hono/logger';
@@ -24,21 +23,6 @@ function parseStoredReferences(
     return JSON.parse(raw);
   } catch {
     return null;
-  }
-}
-
-export class ChatCrewContainer extends DurableObject<Environment> {
-  private container: Container;
-
-  constructor(state: DurableObjectState, env: Environment) {
-    super(state, env);
-    this.container = (state as unknown as { container: Container }).container;
-  }
-
-  async fetch(request: Request): Promise<Response> {
-    return (
-      this.container as unknown as { fetch: (r: Request) => Promise<Response> }
-    ).fetch(request);
   }
 }
 
