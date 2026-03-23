@@ -11,6 +11,10 @@
   "ai": {
     "binding": "AI",
   },
+  "migrations": [
+    { "tag": "v1", "new_classes": ["ChatCrewContainer"] },
+    { "tag": "v2", "deleted_classes": ["ChatCrewContainer"] }
+  ],
   "vars": {
     "ENVIRONMENT": "prod",
     "API_GATEWAY_URL": "https://api.crowai.dev",
