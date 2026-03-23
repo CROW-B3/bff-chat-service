@@ -196,43 +196,12 @@ export async function runCrewAgenticLoop(
   ai: Ai,
   env: Environment
 ): Promise<AgenticLoopResult> {
-  try {
-    const containerId = env.CHAT_CREW_CONTAINER.idFromName(organizationId);
-    const stub = env.CHAT_CREW_CONTAINER.get(containerId);
-    const response = await stub.fetch(
-      new Request('http://container/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: messages[messages.length - 1]?.content ?? '',
-          organization_id: organizationId,
-          conversation_history: messages,
-          api_gateway_url: apiGatewayUrl,
-          internal_gateway_key: env.INTERNAL_GATEWAY_KEY,
-          qna_service_url: env.QNA_SERVICE_URL,
-        }),
-      })
-    );
-    if (!response.ok)
-      throw new Error(`Container responded with ${response.status}`);
-    const data = (await response.json()) as {
-      response: string;
-      references?: Array<{ index: number; type: string; label: string }>;
-    };
-    const references: SourceReference[] = (data.references ?? []).map(ref => ({
-      index: ref.index,
-      type: ref.type as SourceReference['type'],
-      label: ref.label,
-    }));
-    return { content: data.response, references };
-  } catch {
-    return runAgenticLoop(
-      messages,
-      organizationId,
-      apiGatewayUrl,
-      ai,
-      env.INTERNAL_GATEWAY_KEY,
-      env.QNA_SERVICE_URL
-    );
-  }
+  return runAgenticLoop(
+    messages,
+    organizationId,
+    apiGatewayUrl,
+    ai,
+    env.INTERNAL_GATEWAY_KEY,
+    env.QNA_SERVICE_URL
+  );
 }

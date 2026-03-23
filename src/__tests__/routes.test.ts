@@ -1,9 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('cloudflare:workers', () => ({
-  DurableObject: class {},
-}));
-
 vi.mock('../ai/agent', () => ({
   runCrewAgenticLoop: vi.fn(() =>
     Promise.resolve({
@@ -65,10 +61,6 @@ const mockEnv = {
   INTERNAL_API_KEY: 'test-internal-key',
   INTERNAL_GATEWAY_KEY: 'test-key',
   QNA_SERVICE_URL: 'http://localhost:8010',
-  CHAT_CREW_CONTAINER: {
-    get: vi.fn(),
-    idFromName: vi.fn(),
-  },
 };
 
 import app from '../index';
