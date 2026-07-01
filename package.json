@@ -32,7 +32,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@commitlint/config-conventional": "^20.3.0",
+    "@commitlint/config-conventional": "^21.2.0",
     "@deox/drizzle-d1-utils": "^0.0.1",
     "drizzle-kit": "^0.31.8",
     "husky": "^9.1.7",
